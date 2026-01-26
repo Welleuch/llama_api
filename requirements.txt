@@ -1,2 +1,2 @@
 runpod>=1.6.0
-llama-cpp-python>=0.2.0
+# llama-cpp-python will be installed in Dockerfile with CUDA flags

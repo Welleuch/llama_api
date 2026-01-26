@@ -1,19 +1,20 @@
-# Dockerfile
+# Dockerfile - Simplified version
 FROM runpod/base:0.4.0-cuda11.8.0
 
-# Install Python dependencies
+# Install minimal dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python packages
 RUN pip install --upgrade pip
-RUN pip install runpod llama-cpp-python
+RUN CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python --no-cache-dir
+RUN pip install runpod
 
-# Create directory for handler
-WORKDIR /app
+# Copy handler
+COPY handler.py /handler.py
+COPY requirements.txt /requirements.txt
 
-# Copy files
-COPY handler.py /app/handler.py
-COPY requirements.txt /app/requirements.txt
-
-# Install any additional requirements
-RUN if [ -f /app/requirements.txt ]; then pip install -r /app/requirements.txt; fi
-
-# Set the handler as entrypoint
-CMD ["python", "-u", "/app/handler.py"]
+# Run handler
+CMD ["python", "-u", "/handler.py"]
