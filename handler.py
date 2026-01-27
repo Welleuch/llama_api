@@ -1,10 +1,9 @@
-# handler.py - FIXED WITH BETTER PARSING
+# handler.py - SIMPLIFIED & FIXED
 import runpod
 from llama_cpp import Llama
 import os
 import sys
 import time
-import json
 
 print("=" * 60)
 print("🚀 3D PRINTING GIFT IDEA GENERATOR")
@@ -38,92 +37,47 @@ if os.path.exists(MODEL_PATH):
 else:
     print("❌ Model file not found!")
 
-def generate_gift_idea(fun_fact, color="gray", material="PLA"):
-    """Generate a 3D printable gift idea"""
+def generate_gift_idea(fun_fact):
+    """Generate a 3D printable gift idea - SIMPLE PROMPT"""
     
-    prompt = f"""Create a decorative 3D printable object for a desk.
+    prompt = f"""You are a creative product designer and 3D-printing expert.
 
-PERSON INTERESTS: {fun_fact}
-MATERIAL: {color} {material}
-PRINTING: FDM
+Create a 3D printed gift made completely with PLA filament of gray color.
 
-COMBINE: astronomy + coffee
-TYPE: decorative desk object
-STYLE: low-poly 3D model
+The person loves: {fun_fact}
 
-EXAMPLES:
-- "loves cats and surfing" → "Surfing cat figurine"
-- "gardening and astronomy" → "Planet-shaped succulent planter"
+Create a unique gift idea that combines these interests and is decorative for a desk.
 
-YOUR RESPONSE MUST BE IN THIS EXACT FORMAT:
+IMPORTANT PRINTING RULES:
+- Print with minimal or no support material
+- No thin walls (minimum 2mm thickness)
+- No separate parts - must be one continuous object
+- Avoid overhangs greater than 45 degrees
+- No electronics or moving parts
+- Size under 15cm
 
-IDEA: [creative name]
-DESC: [one sentence description]
-IMG: [visual description for AI image generator, max 25 words]
+GOOD IDEAS:
+- Figurines that combine interests
+- Desk organizers with themed designs
+- Decorative holders or stands
+- Low-poly sculptures
 
-NOW CREATE FOR: "{fun_fact}" """
+Now generate ONE gift idea with:
+1. A creative name
+2. A brief description
+3. A visual description for AI image generation
+
+Format your answer like this:
+
+NAME: [Creative name here]
+
+DESCRIPTION: [What it is and how it combines the interests]
+
+VISUAL: [Detailed visual description for image generation. Describe shape, style, features. Mention it's a gray PLA 3D printable object.]
+
+For: {fun_fact}"""
     
     return prompt
-
-def extract_from_response(text, color, material):
-    """Extract components from response with fallbacks"""
-    
-    # Default fallbacks
-    idea = f"{color.title()} {material} Gift"
-    desc = f"A decorative {material} object for {color} printing"
-    img_prompt = f"low-poly {color} {material} decorative object, front view, studio lighting"
-    
-    # Try to extract IDEA
-    lines = text.strip().split('\n')
-    for i, line in enumerate(lines):
-        line = line.strip()
-        
-        # Look for IDEA: pattern
-        if line.upper().startswith('IDEA:'):
-            idea = line[5:].strip().strip('"').strip("'")
-            # If we have DESC on next line, use it
-            if i+1 < len(lines) and lines[i+1].strip().upper().startswith('DESC:'):
-                desc = lines[i+1].strip()[5:].strip().strip('"').strip("'")
-            # If we have IMG on next+1 line, use it
-            if i+2 < len(lines) and lines[i+2].strip().upper().startswith('IMG:'):
-                img_prompt = lines[i+2].strip()[4:].strip().strip('"').strip("'")
-            break
-    
-    # If we didn't find IDEA: pattern, try other patterns
-    if idea == f"{color.title()} {material} Gift":
-        # Look for any creative phrase in first few lines
-        for line in lines[:3]:
-            if line.strip() and not any(x in line.upper() for x in ['IDEA:', 'DESC:', 'IMG:', 'FOR:']):
-                idea = line.strip().strip('"').strip("'")
-                # Create a simple description
-                words = fun_fact.split()[-3:] if 'fun_fact' in locals() else ['object']
-                desc = f"A decorative {' '.join(words)} {material} object"
-                # Create image prompt
-                img_prompt = f"low-poly {idea.lower()}, {color} {material}, front view, 3D printable"
-                break
-    
-    # Clean up image prompt
-    img_prompt = img_prompt.replace('"', '').replace("'", "")
-    # Remove any explanations
-    sentences = img_prompt.split('.')
-    if len(sentences) > 1:
-        # Take only the first sentence (visual description)
-        img_prompt = sentences[0].strip()
-    
-    # Ensure image prompt includes key elements
-    if color not in img_prompt.lower():
-        img_prompt = f"{color} {img_prompt}"
-    if material not in img_prompt.lower():
-        img_prompt = f"{material} {img_prompt}"
-    if 'low-poly' not in img_prompt.lower():
-        img_prompt = f"low-poly {img_prompt}"
-    
-    # Limit length
-    words = img_prompt.split()
-    if len(words) > 30:
-        img_prompt = ' '.join(words[:30])
-    
-    return idea, desc, img_prompt
 
 def handler(job):
     """Main handler function"""
@@ -132,11 +86,8 @@ def handler(job):
     try:
         input_data = job["input"]
         fun_fact = input_data.get("fun_fact", "").strip()
-        color = input_data.get("color", "gray").strip()
-        material = input_data.get("material", "PLA").strip()
         
         print(f"📝 Input: {fun_fact}")
-        print(f"🎨 Color: {color}, Material: {material}")
         
         if not fun_fact:
             return {"error": "Please provide a 'fun_fact'"}
@@ -145,56 +96,78 @@ def handler(job):
             return {"status": "error", "message": "Model not loaded"}
         
         # Generate prompt
-        prompt = generate_gift_idea(fun_fact, color, material)
+        prompt = generate_gift_idea(fun_fact)
+        print(f"📝 Prompt length: {len(prompt)} chars")
         
         print("🤖 Generating...")
         start_time = time.time()
         
         response = llm(
             prompt,
-            max_tokens=150,      # Keep it short
-            temperature=0.9,     # More creative
-            top_p=0.95,
-            echo=False,
-            stop=["\n\n", "FOR:", "Now create", "Example:"]  # Stop sequences
+            max_tokens=350,      # Enough for all three parts
+            temperature=0.7,     # Balanced creativity
+            top_p=0.9,
+            echo=False
         )
         
         generation_time = time.time() - start_time
         
         raw_response = response['choices'][0]['text'].strip()
-        print(f"📄 Raw response:\n{raw_response}")
-        print("-" * 40)
+        print(f"\n📄 Full response:\n{raw_response}")
+        print("-" * 50)
         
-        # Extract components
-        idea, desc, img_prompt = extract_from_response(raw_response, color, material)
+        # Parse the response
+        lines = raw_response.split('\n')
+        name = "3D Printed Gift"
+        description = "A decorative object"
+        visual = "gray PLA decorative object, low-poly style, front view"
         
-        # Create a better image prompt if it's still generic
-        if img_prompt == f"low-poly {color} {material} decorative object, front view, studio lighting":
-            # Create from the idea
-            img_prompt = f"low-poly {idea.lower()}, {color} {material}, front view, 3D printable desk object, studio lighting"
+        for i, line in enumerate(lines):
+            line = line.strip()
+            
+            if line.upper().startswith('NAME:'):
+                name = line[5:].strip()
+                # Look ahead for description
+                for j in range(i+1, min(i+3, len(lines))):
+                    if lines[j].strip().upper().startswith('DESCRIPTION:'):
+                        description = lines[j].strip()[12:].strip()
+                        # Look ahead for visual
+                        for k in range(j+1, min(j+3, len(lines))):
+                            if lines[k].strip().upper().startswith('VISUAL:'):
+                                visual = lines[k].strip()[7:].strip()
+                                break
+                        break
+                break
         
-        print(f"✅ Extracted Idea: {idea}")
-        print(f"✅ Description: {desc}")
-        print(f"✅ Image Prompt: {img_prompt}")
+        # Clean up visual description
+        visual = visual.replace('"', '').replace("'", "")
+        # Ensure it mentions gray PLA
+        if "gray" not in visual.lower() and "grey" not in visual.lower():
+            visual = f"gray PLA {visual}"
+        if "PLA" not in visual.upper():
+            visual = f"PLA {visual}"
+        
+        # Remove any meta instructions from visual
+        visual = visual.split('.')[0].strip()
+        
+        print(f"\n✅ Parsed results:")
+        print(f"Name: {name}")
+        print(f"Description: {description}")
+        print(f"Visual: {visual}")
         
         return {
             "status": "success",
-            "user_display": {
-                "title": idea,
-                "description": desc
+            "idea": {
+                "name": name,
+                "description": description,
+                "visual_prompt": visual,
+                "fun_fact": fun_fact,
+                "material": "PLA",
+                "color": "gray",
+                "printing_notes": "Designed for minimal supports, one continuous object"
             },
-            "image_generation": {
-                "prompt": img_prompt,
-                "color": color,
-                "material": material,
-                "style": "low-poly 3D model"
-            },
-            "fun_fact": fun_fact,
             "generation_time": f"{generation_time:.2f}s",
-            "model": "Qwen2.5-1.5B-Instruct",
-            "debug": {
-                "raw_response_preview": raw_response[:100]
-            }
+            "model": "Qwen2.5-1.5B-Instruct"
         }
         
     except Exception as e:
@@ -205,5 +178,11 @@ def handler(job):
 
 print("\n🏁 Starting RunPod serverless handler...")
 print("Ready to generate 3D printable gift ideas! 🎁")
+print("\n📝 Input format (simple):")
+print('''{
+  "input": {
+    "fun_fact": "loves astronomy and coffee"
+  }
+}''')
 
 runpod.serverless.start({"handler": handler})
