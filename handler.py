@@ -1,4 +1,4 @@
-# handler.py - FIXED VERSION WITH BETTER FORMAT HANDLING
+# handler.py - SIMPLIFIED VERSION
 import runpod
 from llama_cpp import Llama
 import os
@@ -8,11 +8,8 @@ import re
 
 print("=" * 60)
 print("🚀 3D PRINTING GIFT IDEA GENERATOR")
-print("Optimized for: Text → Image → 3D Model Pipeline")
-print("Model: Qwen2.5-1.5B-Instruct")
 print("=" * 60)
 
-# MODEL PATH
 MODEL_PATH = "/runpod-volume/qwen2.5-1.5b-instruct-q4_k_m.gguf"
 
 print(f"📦 Model: {MODEL_PATH}")
@@ -28,98 +25,75 @@ if os.path.exists(MODEL_PATH):
     try:
         llm = Llama(
             model_path=MODEL_PATH,
-            n_ctx=2048,
+            n_ctx=1024,
             n_threads=4,
             n_gpu_layers=0,
-            verbose=True
+            verbose=False
         )
         print("✅ Model loaded successfully!")
         
-        # Quick test
-        test_response = llm("Hello", max_tokens=10)
-        print(f"🧪 Test OK")
-        
     except Exception as e:
         print(f"❌ Model loading failed: {e}")
-        import traceback
-        traceback.print_exc()
         llm = None
 else:
     print("❌ Model file not found!")
 
 def generate_gift_idea(fun_fact, color="gray", material="PLA"):
-    """Generate a 3D printable gift idea with DfAM constraints"""
+    """Generate a 3D printable gift idea"""
     
-    prompt = f"""You are a professional 3D printing designer. Create a gift for someone who: "{fun_fact}"
+    prompt = f"""Create a decorative 3D printable object for a desk or sideboard.
 
-MATERIAL: {color} {material} filament
-PRINTING: FDM (Fused Deposition Modeling)
+THE PERSON: {fun_fact}
+MATERIAL: {color} {material}
+PRINTING: FDM (no supports if possible)
 
-CRITICAL PRINTING RULES:
-• Minimal or no supports needed
-• Avoid overhangs >45 degrees
-• No separate parts - one solid object
-• No tiny details <2mm
-• Self-supporting design
+REQUIREMENTS:
+1. Combine something from astronomy with something from coffee
+2. Must be decorative for desk/sideboard (not functional)
+3. Must be one solid object that prints easily
+4. Size: under 15cm in any dimension
 
-FORMAT YOUR ANSWER EXACTLY LIKE THIS:
+EXAMPLES:
+- For "loves cats and surfing": "Surfing cat figurine"
+- For "gardening and astronomy": "Planet-shaped succulent planter"
 
-[IDEA NAME]
-A creative name for your 3D printable gift
+FORMAT YOUR ANSWER:
 
-[PRINTABILITY]  
-Beginner, Intermediate, or Advanced
+IDEA: [One short creative name]
 
-[IMAGE DESCRIPTION]
-A detailed description for AI image generation. Describe:
-- The object from front view
-- Shape, size, key features
-- That it's a gray PLA 3D printable object
-- Style: low-poly or clean 3D model
-- Example: "A low-poly rocket ship coffee mug, viewed from front. Smooth gray PLA surface, geometric shapes, studio lighting"
+DESCRIPTION: [One sentence - what it looks like]
 
-NOW CREATE FOR: "{fun_fact}" using {color} {material}"""
+IMAGE_PROMPT: [Visual description ONLY for AI image generator. Include: shape, style (low-poly), material ({color} {material}), front view. MAX 30 words.]
+
+FOR: "{fun_fact}" """
     
     return prompt
 
 def parse_response(text):
-    """Parse the structured response from the model"""
-    print("🔍 Parsing model response...")
-    
-    # Initialize with defaults
+    """Extract the three parts"""
     result = {
-        "name": "3D Printed Gift Idea",
-        "printability": "Intermediate",
-        "image_prompt": f"A 3D printable object for someone who loves {text.split('loves')[-1][:50] if 'loves' in text else 'this hobby'}, gray PLA material, low-poly style, front view"
+        "idea": "3D Printed Gift",
+        "description": "A decorative object",
+        "image_prompt": f"low-poly {color} {material} decorative object, front view"
     }
     
-    # Try to extract [IDEA NAME]
-    name_match = re.search(r'\[IDEA NAME\](.*?)(?=\[PRINTABILITY\]|\[IMAGE DESCRIPTION\]|$)', text, re.DOTALL | re.IGNORECASE)
-    if name_match:
-        result["name"] = name_match.group(1).strip()
-        print(f"✅ Found name: {result['name']}")
+    # Clean the text
+    text = text.strip()
     
-    # Try to extract [PRINTABILITY]
-    print_match = re.search(r'\[PRINTABILITY\](.*?)(?=\[IMAGE DESCRIPTION\]|$)', text, re.DOTALL | re.IGNORECASE)
-    if print_match:
-        result["printability"] = print_match.group(1).strip()
-        print(f"✅ Found printability: {result['printability']}")
+    # Extract IDEA
+    idea_match = re.search(r'IDEA:\s*(.+?)(?=DESCRIPTION:|IMAGE_PROMPT:|$)', text, re.IGNORECASE)
+    if idea_match:
+        result["idea"] = idea_match.group(1).strip().strip('"')
     
-    # Try to extract [IMAGE DESCRIPTION]
-    desc_match = re.search(r'\[IMAGE DESCRIPTION\](.*?)$', text, re.DOTALL | re.IGNORECASE)
+    # Extract DESCRIPTION
+    desc_match = re.search(r'DESCRIPTION:\s*(.+?)(?=IMAGE_PROMPT:|$)', text, re.IGNORECASE)
     if desc_match:
-        result["image_prompt"] = desc_match.group(1).strip()
-        print(f"✅ Found image description: {result['image_prompt'][:100]}...")
+        result["description"] = desc_match.group(1).strip().strip('"')
     
-    # If parsing failed, create a fallback
-    if not any([name_match, print_match, desc_match]):
-        print("⚠️ Could not parse structured format, using fallback")
-        # Extract the first line as name
-        lines = text.strip().split('\n')
-        if lines:
-            result["name"] = lines[0].strip()[:100]
-        # Create simple image prompt
-        result["image_prompt"] = f"A 3D printable {color} {material} object for astronomy and coffee lovers, low-poly design, front view, studio lighting"
+    # Extract IMAGE_PROMPT
+    img_match = re.search(r'IMAGE_PROMPT:\s*(.+?)$', text, re.IGNORECASE)
+    if img_match:
+        result["image_prompt"] = img_match.group(1).strip().strip('"')
     
     return result
 
@@ -134,84 +108,67 @@ def handler(job):
         material = input_data.get("material", "PLA").strip()
         
         print(f"📝 Input: {fun_fact}")
-        print(f"🎨 Color: {color}, Material: {material}")
         
         if not fun_fact:
             return {"error": "Please provide a 'fun_fact'"}
         
         if not llm:
-            return {
-                "status": "error",
-                "message": "Model not loaded",
-                "debug": f"Path: {MODEL_PATH}, Exists: {os.path.exists(MODEL_PATH)}"
-            }
+            return {"status": "error", "message": "Model not loaded"}
         
         # Generate prompt
         prompt = generate_gift_idea(fun_fact, color, material)
         
-        print("🤖 Generating idea...")
-        print(f"📝 Prompt length: {len(prompt)} chars")
-        
+        print("🤖 Generating...")
         start_time = time.time()
         
-        # Generate response - NO stop parameter, let it complete
         response = llm(
             prompt,
-            max_tokens=500,      # Enough for structured response
-            temperature=0.7,
+            max_tokens=200,      # SHORT response!
+            temperature=0.8,     # More creative
             top_p=0.9,
-            echo=False          # Don't include prompt in response
+            echo=False
         )
         
         generation_time = time.time() - start_time
-        print(f"⏱️ Generation took: {generation_time:.2f} seconds")
         
         raw_response = response['choices'][0]['text'].strip()
-        print(f"📄 Raw response ({len(raw_response)} chars):")
-        print("-" * 40)
-        print(raw_response[:500] + ("..." if len(raw_response) > 500 else ""))
-        print("-" * 40)
+        print(f"📄 Raw: {raw_response[:100]}...")
         
-        # Parse the response
+        # Parse
         parsed = parse_response(raw_response)
         
-        # Ensure image_prompt is not empty
-        if not parsed["image_prompt"] or len(parsed["image_prompt"]) < 20:
-            parsed["image_prompt"] = f"A 3D printable {color} {material} object called '{parsed['name']}', low-poly design, front view, studio lighting, clean background"
+        # Clean up image prompt - remove any explanations
+        img_prompt = parsed["image_prompt"]
+        # Remove anything that sounds like an explanation
+        img_prompt = re.sub(r'(this|which|because|so that|allowing|making it).*', '', img_prompt, flags=re.IGNORECASE)
+        img_prompt = re.sub(r'\s+', ' ', img_prompt).strip()
         
-        print(f"✅ Final idea: {parsed['name']}")
-        print(f"✅ Image prompt: {parsed['image_prompt'][:100]}...")
+        # Ensure it's not too long
+        if len(img_prompt.split()) > 40:
+            words = img_prompt.split()[:40]
+            img_prompt = ' '.join(words) + "..."
+        
+        print(f"✅ Idea: {parsed['idea']}")
+        print(f"✅ Image prompt: {img_prompt[:80]}...")
         
         return {
             "status": "success",
-            "idea": {
-                "name": parsed["name"],
-                "printability": parsed["printability"],
-                "image_prompt": parsed["image_prompt"],
-                "fun_fact": fun_fact,
-                "material": material,
-                "color": color
+            "user_display": {
+                "title": parsed["idea"],
+                "description": parsed["description"]
             },
-            "generation_time": f"{generation_time:.2f}s",
-            "model": "Qwen2.5-1.5B-Instruct",
-            "raw_response_preview": raw_response[:200] + ("..." if len(raw_response) > 200 else "")
+            "image_generation": {
+                "prompt": img_prompt,
+                "color": color,
+                "material": material
+            },
+            "fun_fact": fun_fact,
+            "generation_time": f"{generation_time:.2f}s"
         }
         
     except Exception as e:
-        print(f"❌ Handler error: {e}")
-        import traceback
-        traceback.print_exc()
-        return {"error": str(e), "type": type(e).__name__}
+        print(f"❌ Error: {e}")
+        return {"error": str(e)}
 
-print("\n🏁 Starting RunPod serverless handler...")
-print("Ready to generate 3D printable gift ideas! 🎁")
-print("\n📝 Input format:")
-print('''{
-  "input": {
-    "fun_fact": "loves astronomy and coffee",
-    "color": "gray",
-    "material": "PLA"
-  }
-}''')
-
+print("\n🏁 Starting...")
 runpod.serverless.start({"handler": handler})
