@@ -1,4 +1,4 @@
-# handler.py - SIMPLE MULTIPLE IDEAS
+# handler.py - SINGLE HIGH-QUALITY IDEA (BEST VERSION)
 import runpod
 from llama_cpp import Llama
 import os
@@ -7,6 +7,7 @@ import time
 
 print("=" * 60)
 print("🚀 3D PRINTING GIFT IDEA GENERATOR")
+print("(Single High-Quality Idea Version)")
 print("=" * 60)
 
 MODEL_PATH = "/runpod-volume/qwen2.5-1.5b-instruct-q4_k_m.gguf"
@@ -37,34 +38,57 @@ if os.path.exists(MODEL_PATH):
 else:
     print("❌ Model file not found!")
 
-def generate_single_idea(fun_fact, idea_number=1):
-    """Generate ONE idea at a time - simpler for the model"""
+def generate_high_quality_idea(fun_fact):
+    """Generate ONE high-quality, specific idea"""
     
-    prompt = f"""Think of a creative 3D printable gift for someone who loves {fun_fact}.
+    prompt = f"""You are designing a 3D printable decorative object for a desk.
 
-The gift should combine elements from their interests.
-It should be made of gray PLA plastic.
-It should print easily with minimal supports.
-It should be a decorative object for a desk.
+PERSON'S INTERESTS: {fun_fact}
+MATERIAL: Gray PLA plastic
+PRINTING METHOD: FDM (Fused Deposition Modeling)
 
-Give me idea number {idea_number}:
+CREATE ONE SPECIFIC OBJECT that creatively combines elements from their interests.
 
-Name: [Give it a creative name]
-Description: [Describe what it looks like for an AI image generator]"""
+OBJECT REQUIREMENTS:
+• Must be ONE solid object (no assembly)
+• Printable with minimal or no supports
+• No overhangs greater than 45 degrees
+• No thin walls (minimum 2mm thickness)
+• Desk-sized (under 15cm tall/wide)
+• Decorative, not functional
+• Visually interesting from the front
+
+BRAINSTORM EXAMPLE:
+For "loves coffee and cats":
+• A cat-shaped coffee cup holder
+• A coaster with cat paw prints and coffee bean patterns
+• A pen holder shaped like a sleeping cat next to a coffee mug
+
+YOUR TASK:
+1. Think of ONE creative, specific object
+2. Describe it in detail for an AI image generator
+3. Make sure it follows all printing rules
+
+FORMAT YOUR RESPONSE:
+
+OBJECT: [Creative, specific name]
+
+DESCRIPTION: [Detailed visual description for AI image generation. Be specific about shapes, features, style. Mention it's a gray PLA 3D printable object. 3-5 sentences.]
+
+Now create for: "{fun_fact}"
+"""
     
     return prompt
 
 def handler(job):
-    """Main handler function - Generate multiple ideas sequentially"""
+    """Main handler function - Returns ONE high-quality idea"""
     print(f"\n🎯 Received job")
     
     try:
         input_data = job["input"]
         fun_fact = input_data.get("fun_fact", "").strip()
-        num_ideas = min(int(input_data.get("num_ideas", 3)), 5)  # Max 5, default 3
         
         print(f"📝 Input: {fun_fact}")
-        print(f"🎯 Generating {num_ideas} ideas...")
         
         if not fun_fact:
             return {"error": "Please provide a 'fun_fact'"}
@@ -72,91 +96,116 @@ def handler(job):
         if not llm:
             return {"status": "error", "message": "Model not loaded"}
         
-        all_ideas = []
-        total_generation_time = 0
+        # Generate prompt
+        prompt = generate_high_quality_idea(fun_fact)
         
-        # Generate ideas ONE BY ONE
-        for i in range(num_ideas):
-            print(f"\n💡 Generating idea {i+1}/{num_ideas}...")
-            
-            prompt = generate_single_idea(fun_fact, i+1)
-            
-            start_time = time.time()
-            
-            response = llm(
-                prompt,
-                max_tokens=200,
-                temperature=0.8,
-                top_p=0.9,
-                echo=False
-            )
-            
-            generation_time = time.time() - start_time
-            total_generation_time += generation_time
-            
-            raw_response = response['choices'][0]['text'].strip()
-            print(f"📄 Response {i+1}: {raw_response[:100]}...")
-            
-            # Simple parsing
-            lines = [line.strip() for line in raw_response.split('\n') if line.strip()]
-            
-            name = f"Idea {i+1}"
-            description = f"A decorative 3D printable object for {fun_fact}"
-            
-            for line in lines:
-                line_lower = line.lower()
-                if line_lower.startswith('name:'):
-                    name = line[5:].strip().strip('"').strip("'")
-                elif line_lower.startswith('description:'):
-                    description = line[12:].strip().strip('"').strip("'")
-                elif ':' not in line and len(line) > 10 and name == f"Idea {i+1}":
-                    # If no "Name:" tag found, use the first substantial line as name
-                    name = line[:50]
-            
-            # Enhance the description
-            if len(description.split()) < 10:
-                description = f"low-poly gray PLA {name.lower()}, 3D printable decorative object, front view"
-            
-            # Ensure it has key elements
-            desc_lower = description.lower()
-            if "gray" not in desc_lower and "grey" not in desc_lower:
-                description = f"gray {description}"
-            if "pla" not in desc_lower:
-                description = f"PLA {description}"
-            if "3d" not in desc_lower:
-                description = f"3D printable {description}"
-            
-            # Add DfAM context
-            description += ". Designed for 3D printing with minimal supports."
-            
-            # Clean up
-            description = ' '.join(description.split()[:50])  # Limit to 50 words
-            
-            idea = {
-                "name": name,
-                "visual_prompt": description,
-                "material": "PLA",
-                "color": "gray",
-                "generation_time": f"{generation_time:.2f}s"
-            }
-            
-            all_ideas.append(idea)
-            print(f"✅ Idea {i+1}: {name}")
-            
-            # Optional: small delay between generations
-            if i < num_ideas - 1:
-                time.sleep(0.5)  # 0.5 second pause
+        print("🤖 Generating high-quality idea...")
+        start_time = time.time()
         
-        print(f"\n✅ Generated {len(all_ideas)} ideas in {total_generation_time:.2f} seconds")
+        response = llm(
+            prompt,
+            max_tokens=450,      # Enough for detailed description
+            temperature=0.75,    # Balanced creativity
+            top_p=0.9,
+            echo=False
+        )
+        
+        generation_time = time.time() - start_time
+        
+        raw_response = response['choices'][0]['text'].strip()
+        print(f"\n📄 Raw response:\n{raw_response}")
+        print("-" * 50)
+        
+        # Parse the response
+        lines = [line.strip() for line in raw_response.split('\n') if line.strip()]
+        
+        name = f"3D Printed Gift for {fun_fact.split()[-1] if len(fun_fact.split()) > 1 else 'Friend'}"
+        description = ""
+        
+        # Look for OBJECT: and DESCRIPTION: markers
+        found_object = False
+        found_description = False
+        
+        for i, line in enumerate(lines):
+            line_lower = line.lower()
+            
+            if line_lower.startswith('object:'):
+                name = line[7:].strip().strip('"').strip("'")
+                found_object = True
+            
+            elif line_lower.startswith('description:'):
+                description = line[12:].strip().strip('"').strip("'")
+                found_description = True
+                
+                # Try to get more description from following lines
+                for j in range(i+1, min(i+4, len(lines))):
+                    next_line = lines[j].strip()
+                    if next_line and not next_line.lower().startswith(('object:', 'description:', 'name:')):
+                        description += " " + next_line
+            
+            elif not found_object and len(line) > 10 and ':' not in line:
+                # If no OBJECT: found, use first substantial line as name
+                name = line[:80]
+                found_object = True
+        
+        # If no proper description was found, use the entire response (excluding name)
+        if not description or len(description.split()) < 15:
+            # Combine all lines except the name line
+            all_text = ' '.join(lines)
+            if name in all_text:
+                description = all_text.replace(name, '').strip()
+            else:
+                description = all_text
+        
+        # Clean and enhance the description
+        description = description.replace('"', '').replace("'", "").strip()
+        
+        # Ensure it mentions key elements
+        desc_lower = description.lower()
+        if "gray" not in desc_lower and "grey" not in desc_lower:
+            description = f"Gray {description}"
+        if "pla" not in desc_lower:
+            description = f"PLA {description}"
+        if "3d" not in desc_lower and "three dimensional" not in desc_lower:
+            description = f"3D printable {description}"
+        
+        # Add DfAM context if not already there
+        if "support" not in desc_lower and "print" in desc_lower:
+            description += " Designed for 3D printing with minimal supports, solid construction."
+        
+        # Clean up repetitions
+        sentences = description.split('. ')
+        unique_sentences = []
+        seen = set()
+        for sentence in sentences:
+            words = sentence.split()[:10]  # First 10 words as key
+            key = ' '.join(words).lower()
+            if key not in seen:
+                unique_sentences.append(sentence)
+                seen.add(key)
+        
+        description = '. '.join(unique_sentences).strip()
+        if not description.endswith('.'):
+            description += '.'
+        
+        print(f"\n✅ Parsed results:")
+        print(f"Name: {name}")
+        print(f"Description length: {len(description.split())} words")
+        print(f"First 100 chars: {description[:100]}...")
         
         return {
             "status": "success",
-            "fun_fact": fun_fact,
-            "total_ideas": len(all_ideas),
-            "ideas": all_ideas,
-            "total_generation_time": f"{total_generation_time:.2f}s",
-            "average_time_per_idea": f"{total_generation_time/len(all_ideas):.2f}s",
-            "model": "Qwen2.5-1.5B-Instruct"
+            "idea": {
+                "name": name,
+                "visual_prompt": description,  # This goes to text-image model
+                "fun_fact": fun_fact,
+                "material": "PLA",
+                "color": "gray",
+                "printing_notes": "Designed for FDM printing with minimal supports, one continuous object"
+            },
+            "generation_time": f"{generation_time:.2f}s",
+            "model": "Qwen2.5-1.5B-Instruct",
+            "quality": "high"
         }
         
     except Exception as e:
@@ -166,12 +215,11 @@ def handler(job):
         return {"error": str(e)}
 
 print("\n🏁 Starting RunPod serverless handler...")
-print("Ready to generate multiple 3D printable gift ideas! 🎁")
-print("\n📝 Input format:")
+print("Generating HIGH-QUALITY 3D printable gift ideas! 🎁")
+print("\n📝 Input format (simple):")
 print('''{
   "input": {
-    "fun_fact": "loves coffee and cats",
-    "num_ideas": 3  // Optional, 1-5
+    "fun_fact": "loves coffee and cats"
   }
 }''')
 
