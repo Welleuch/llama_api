@@ -1,4 +1,4 @@
-# handler.py - SIMPLIFIED VERSION
+# handler.py - FIXED VERSION
 import runpod
 from llama_cpp import Llama
 import os
@@ -69,7 +69,7 @@ FOR: "{fun_fact}" """
     
     return prompt
 
-def parse_response(text):
+def parse_response(text, color="gray", material="PLA"):
     """Extract the three parts"""
     result = {
         "idea": "3D Printed Gift",
@@ -108,6 +108,7 @@ def handler(job):
         material = input_data.get("material", "PLA").strip()
         
         print(f"📝 Input: {fun_fact}")
+        print(f"🎨 Color: {color}, Material: {material}")
         
         if not fun_fact:
             return {"error": "Please provide a 'fun_fact'"}
@@ -132,10 +133,10 @@ def handler(job):
         generation_time = time.time() - start_time
         
         raw_response = response['choices'][0]['text'].strip()
-        print(f"📄 Raw: {raw_response[:100]}...")
+        print(f"📄 Raw response: {raw_response[:150]}...")
         
-        # Parse
-        parsed = parse_response(raw_response)
+        # Parse with color and material parameters
+        parsed = parse_response(raw_response, color, material)
         
         # Clean up image prompt - remove any explanations
         img_prompt = parsed["image_prompt"]
@@ -149,6 +150,7 @@ def handler(job):
             img_prompt = ' '.join(words) + "..."
         
         print(f"✅ Idea: {parsed['idea']}")
+        print(f"✅ Description: {parsed['description']}")
         print(f"✅ Image prompt: {img_prompt[:80]}...")
         
         return {
@@ -163,12 +165,25 @@ def handler(job):
                 "material": material
             },
             "fun_fact": fun_fact,
-            "generation_time": f"{generation_time:.2f}s"
+            "generation_time": f"{generation_time:.2f}s",
+            "model": "Qwen2.5-1.5B-Instruct"
         }
         
     except Exception as e:
         print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
         return {"error": str(e)}
 
-print("\n🏁 Starting...")
+print("\n🏁 Starting RunPod serverless handler...")
+print("Ready to generate 3D printable gift ideas! 🎁")
+print("\n📝 Input format:")
+print('''{
+  "input": {
+    "fun_fact": "loves astronomy and coffee",
+    "color": "gray",
+    "material": "PLA"
+  }
+}''')
+
 runpod.serverless.start({"handler": handler})
