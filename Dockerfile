@@ -15,4 +15,5 @@ RUN pip install runpod
 # Copy handler
 COPY handler.py /handler.py
 
+# Run handler
 CMD ["python", "-u", "/handler.py"]

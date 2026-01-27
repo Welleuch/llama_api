@@ -1,117 +1,123 @@
-# handler.py - DEBUG VERSION
+# handler.py - FINAL WORKING VERSION
 import runpod
+from llama_cpp import Llama
 import os
 import sys
 import time
 
 print("=" * 60)
-print("🔍 DEBUG: Finding Model Location")
+print("🚀 LLaMA 3D Gift Ideas Generator")
 print("=" * 60)
 
-# Check ALL directories in root
-print("\n📁 FULL ROOT DIRECTORY SCAN:")
-for item in sorted(os.listdir('/')):
-    full_path = os.path.join('/', item)
-    if os.path.isdir(full_path):
-        print(f"\n📁 {item}/")
-        try:
-            contents = os.listdir(full_path)
-            if contents:
-                # Show first 10 items
-                for content in contents[:10]:
-                    content_path = os.path.join(full_path, content)
-                    if os.path.isfile(content_path):
-                        size = os.path.getsize(content_path)
-                        if content.endswith('.gguf'):
-                            print(f"  ⭐ {content} ({size / (1024**3):.2f} GB) <- GGUF FILE!")
-                        else:
-                            print(f"  📄 {content} ({size / 1024:.1f} KB)")
-                    else:
-                        print(f"  📁 {content}/")
-                if len(contents) > 10:
-                    print(f"  ... and {len(contents) - 10} more items")
-            else:
-                print("  (empty)")
-        except Exception as e:
-            print(f"  (cannot list: {e})")
-    else:
-        size = os.path.getsize(full_path)
-        print(f"📄 {item} ({size / 1024:.1f} KB)")
+# CORRECT PATH - based on debug results
+MODEL_PATH = "/runpod-volume/Llama-3.2-3B-Instruct-IQ3_M.gguf"
 
-# Special check for network volume
-print("\n🔍 CHECKING COMMON MOUNT POINTS:")
-mount_points = ['/workspace', '/model', '/volume', '/data', '/mnt', '/runpod']
-for mp in mount_points:
-    if os.path.exists(mp):
-        print(f"✅ {mp} EXISTS")
-        try:
-            contents = os.listdir(mp)
-            print(f"   Contents: {contents}")
-            
-            # Look for GGUF files
-            gguf_files = [f for f in contents if f.endswith('.gguf')]
-            if gguf_files:
-                print(f"   🎯 FOUND GGUF FILES: {gguf_files}")
-        except:
-            print(f"   (cannot list)")
-    else:
-        print(f"❌ {mp} does not exist")
+print(f"📦 Model path: {MODEL_PATH}")
+print(f"✅ File exists: {os.path.exists(MODEL_PATH)}")
 
-print("\n" + "=" * 60)
-print("🔍 Looking for ANY .gguf files anywhere...")
-print("=" * 60)
-
-# Search recursively for GGUF files (limited depth)
-def find_gguf_files(start_path, max_depth=3):
-    gguf_files = []
-    for root, dirs, files in os.walk(start_path):
-        depth = root.count(os.sep) - start_path.count(os.sep)
-        if depth > max_depth:
-            continue
-        
-        for file in files:
-            if file.endswith('.gguf'):
-                full_path = os.path.join(root, file)
-                size = os.path.getsize(full_path)
-                gguf_files.append((full_path, size))
+if os.path.exists(MODEL_PATH):
+    size_gb = os.path.getsize(MODEL_PATH) / (1024**3)
+    print(f"📏 Size: {size_gb:.2f} GB")
     
-    return gguf_files
-
-# Search in likely locations
-search_paths = ['/', '/workspace', '/model', '/volume', '/data', '/mnt', '/runpod']
-all_gguf_files = []
-
-for path in search_paths:
-    if os.path.exists(path):
-        print(f"\nSearching in {path}:")
-        files = find_gguf_files(path, max_depth=2)
-        if files:
-            for file_path, size in files:
-                print(f"  ✅ Found: {file_path} ({size / (1024**3):.2f} GB)")
-                all_gguf_files.append((file_path, size))
-        else:
-            print(f"  No GGUF files found")
-
-print("\n" + "=" * 60)
-if all_gguf_files:
-    print(f"🎯 Found {len(all_gguf_files)} GGUF file(s)!")
-    for file_path, size in all_gguf_files:
-        print(f"  - {file_path} ({size / (1024**3):.2f} GB)")
+    # Load the model
+    print("\n🔧 Loading model...")
+    print("This may take 30-60 seconds on CPU...")
+    
+    try:
+        llm = Llama(
+            model_path=MODEL_PATH,
+            n_ctx=1024,      # Context size
+            n_threads=4,     # Use 4 CPU threads
+            n_gpu_layers=0,  # CPU only
+            verbose=True     # Show loading progress
+        )
+        print("✅ Model loaded successfully!")
+        model_loaded = True
+        
+        # Quick test
+        test_response = llm("Hello", max_tokens=5)
+        print(f"🧪 Test response: '{test_response['choices'][0]['text']}'")
+        
+    except Exception as e:
+        print(f"❌ Model loading failed: {e}")
+        import traceback
+        traceback.print_exc()
+        model_loaded = False
 else:
-    print("❌ No GGUF files found anywhere!")
-    print("\n💡 PROBLEM: Network volume not mounted or model not uploaded")
-    print("   Check: 1. Volume attached to endpoint")
-    print("          2. Model uploaded to volume")
-    print("          3. Correct mount path")
+    print("❌ Model file not found!")
+    model_loaded = False
 
-# Simple handler for debugging
 def handler(job):
-    return {
-        "status": "debug",
-        "message": "Debug scan complete",
-        "found_gguf_files": [f[0] for f in all_gguf_files] if all_gguf_files else "none",
-        "root_dirs": [d for d in os.listdir('/') if os.path.isdir(os.path.join('/', d))]
-    }
+    """Main handler function"""
+    print(f"\n🎯 Received job")
+    
+    try:
+        input_data = job["input"]
+        fun_fact = input_data.get("fun_fact", "").strip()
+        
+        print(f"📝 Processing: {fun_fact}")
+        
+        if not fun_fact:
+            return {"error": "Please provide a 'fun_fact'"}
+        
+        if not model_loaded:
+            return {
+                "status": "error",
+                "message": "Model not loaded",
+                "debug": f"Path: {MODEL_PATH}, Exists: {os.path.exists(MODEL_PATH)}"
+            }
+        
+        # Create prompt for 3D gift ideas
+        prompt = f"""You are a creative 3D printing expert. Based on this information about the gift receiver: "{fun_fact}"
 
-print("\n🏁 Starting debug server...")
+Generate 3 unique 3D printable gift ideas. For each idea provide:
+1. **Name**: Creative name for the item
+2. **Description**: Brief description of what it is
+3. **Why it fits**: Why this is suitable for the person
+4. **Difficulty**: Printing difficulty (Beginner/Intermediate/Advanced)
+
+Format each idea clearly with bullet points.
+
+Examples:
+- For "loves cats and surfing", suggest "Surfing Cat Statuette"
+- For "gardener and astronomer", suggest "Planetary Plant Marker Set"
+
+Now generate ideas for: "{fun_fact}"
+"""
+        
+        print("🤖 Generating ideas...")
+        start_time = time.time()
+        
+        # Generate response
+        response = llm(
+            prompt,
+            max_tokens=500,      # Enough for 3 ideas
+            temperature=0.7,     # Creative but focused
+            top_p=0.9,           # Nucleus sampling
+            echo=False
+        )
+        
+        generation_time = time.time() - start_time
+        print(f"⏱️ Generation took: {generation_time:.2f} seconds")
+        
+        result = response['choices'][0]['text'].strip()
+        
+        print(f"✅ Generated {len(result.split())} words")
+        
+        return {
+            "status": "success",
+            "ideas": result,
+            "original_fact": fun_fact,
+            "generation_time": f"{generation_time:.2f}s",
+            "model": "Llama-3.2-3B-Instruct"
+        }
+        
+    except Exception as e:
+        print(f"❌ Handler error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"error": str(e), "type": type(e).__name__}
+
+print("\n🏁 Starting RunPod serverless handler...")
+print("Ready to generate 3D gift ideas! 🎁")
 runpod.serverless.start({"handler": handler})
