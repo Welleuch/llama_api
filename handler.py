@@ -1,95 +1,125 @@
-# handler.py - UPDATED WITH /workspace
+# handler.py - FINAL VERSION
 import runpod
 from llama_cpp import Llama
 import os
 import sys
+import time
 
-print("=" * 50)
-print("🚀 LLaMA 3D Ideas Generator")
-print("=" * 50)
+print("=" * 60)
+print("🚀 LLaMA 3D Gift Ideas Generator")
+print("=" * 60)
 
-# FIX: Network volumes mount to /workspace by default
-MODEL_PATH = "/workspace/Llama-3.2-3B-Instruct-IQ3_M.gguf"
-print(f"📦 Model path: {MODEL_PATH}")
-
-# Debug: Check what's in /workspace
-print("\n📋 Checking /workspace directory...")
-if os.path.exists("/workspace"):
-    print("✅ /workspace exists!")
-    items = os.listdir("/workspace")
-    if items:
-        print("Contents:")
-        for item in items:
-            full_path = os.path.join("/workspace", item)
-            if os.path.isfile(full_path):
-                size = os.path.getsize(full_path)
-                print(f"  📄 {item} ({size / (1024**3):.2f} GB)")
-            else:
-                print(f"  📁 {item}/")
-    else:
-        print("  (empty)")
-else:
-    print("❌ /workspace does not exist!")
-
-if not os.path.exists(MODEL_PATH):
-    print(f"\n❌ ERROR: Model not found at {MODEL_PATH}")
+# Dynamic model path detection
+def find_model():
+    """Find where the model is mounted"""
+    # Possible mount locations
+    possible_paths = [
+        ("/workspace/Llama-3.2-3B-Instruct-IQ3_M.gguf", "Default RunPod"),
+        ("/model/Llama-3.2-3B-Instruct-IQ3_M.gguf", "Custom mount"),
+        ("/volume/Llama-3.2-3B-Instruct-IQ3_M.gguf", "Alternative"),
+        ("/data/Llama-3.2-3B-Instruct-IQ3_M.gguf", "Data mount"),
+    ]
     
-    # Also check /model in case it was manually configured
-    if os.path.exists("/model"):
-        print("⚠️  Found /model directory. Checking...")
-        for item in os.listdir("/model"):
-            print(f"  - {item}")
-        MODEL_PATH = "/model/Llama-3.2-3B-Instruct-IQ3_M.gguf"
-        print(f"Trying path: {MODEL_PATH}")
+    print("\n🔍 Looking for model file...")
     
-    if not os.path.exists(MODEL_PATH):
-        print("\n💡 Fix: Check network volume mount path in endpoint config")
-        print("Default is /workspace, but might be configured differently")
-        sys.exit(1)
+    for path, description in possible_paths:
+        if os.path.exists(path):
+            print(f"✅ Found at: {path} ({description})")
+            size = os.path.getsize(path) / (1024**3)
+            print(f"   Size: {size:.2f} GB")
+            return path
+        
+        # Check if directory exists
+        dir_path = os.path.dirname(path)
+        if os.path.exists(dir_path):
+            print(f"📁 Directory exists: {dir_path}")
+            print(f"  Contents: {os.listdir(dir_path)}")
+    
+    # If not found, check root directories
+    print("\n📋 Checking root directories:")
+    for item in sorted(os.listdir('/')):
+        if os.path.isdir(os.path.join('/', item)):
+            print(f"  📁 {item}/")
+            try:
+                contents = os.listdir(os.path.join('/', item))
+                if contents:
+                    print(f"    Contents: {contents[:5]}{'...' if len(contents) > 5 else ''}")
+            except:
+                pass
+    
+    return None
 
-print(f"\n✅ Model found! Size: {os.path.getsize(MODEL_PATH) / (1024**3):.2f} GB")
+# Find model
+MODEL_PATH = find_model()
+
+if not MODEL_PATH:
+    print("\n❌ ERROR: Model file not found!")
+    print("\n💡 SOLUTION:")
+    print("1. Network volume MUST be attached during endpoint creation")
+    print("2. Create NEW endpoint with volume ID: ak5dwgtyk9")
+    print("3. Mount path should be: /workspace")
+    print("4. Check that model file exists in the volume")
+    
+    # Keep container alive for debugging
+    print("\n⏳ Container will stay alive for 5 minutes...")
+    time.sleep(300)
+    sys.exit(1)
+
+print(f"\n✅ Using model: {MODEL_PATH}")
 
 # Load model
-print("\n🔧 Loading model (CPU only)...")
-llm = Llama(
-    model_path=MODEL_PATH,
-    n_ctx=1024,
-    n_threads=4,
-    n_gpu_layers=0,
-    verbose=True
-)
-
-print("✅ Model loaded successfully!")
+print("\n🔧 Loading model (CPU only, this takes 30-60 seconds)...")
+try:
+    llm = Llama(
+        model_path=MODEL_PATH,
+        n_ctx=1024,
+        n_threads=4,
+        n_gpu_layers=0,
+        verbose=True
+    )
+    print("✅ Model loaded successfully!")
+except Exception as e:
+    print(f"❌ Model loading failed: {e}")
+    import traceback
+    traceback.print_exc()
+    time.sleep(300)
+    sys.exit(1)
 
 def handler(job):
     """Main handler function"""
     try:
         input_data = job["input"]
-        fun_fact = input_data.get("fun_fact", "")
+        fun_fact = input_data.get("fun_fact", "").strip()
         
-        print(f"\n🎯 Processing: {fun_fact}")
+        if not fun_fact:
+            return {"status": "error", "message": "Please provide a fun_fact"}
         
-        prompt = f"""Suggest 3 creative 3D printable gift ideas for someone who: {fun_fact}
+        print(f"\n🎯 Processing request: '{fun_fact}'")
+        
+        prompt = f"""Suggest 2-3 creative 3D printable gift ideas for someone who: {fun_fact}
 
 For each idea, provide:
-1. Name
-2. Brief description
-3. Why it's suitable
+• Name
+• Brief description
+• Why it's suitable
 
-Keep responses concise and practical for 3D printing."""
+Keep responses practical for 3D printing."""
 
-        response = llm(prompt, max_tokens=300, temperature=0.7)
+        print("🤖 Generating ideas...")
+        response = llm(prompt, max_tokens=250, temperature=0.7)
         result = response['choices'][0]['text'].strip()
+        
+        print("✅ Generation complete!")
         
         return {
             "status": "success",
             "ideas": result,
             "input": fun_fact,
-            "model": "Llama-3.2-3B-Instruct (CPU)"
+            "model": "Llama-3.2-3B-Instruct"
         }
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"❌ Handler error: {e}")
         return {"status": "error", "message": str(e)}
 
 print("\n🏁 Starting RunPod serverless handler...")
