@@ -4,6 +4,7 @@ from llama_cpp import Llama
 import os
 import sys
 import time
+import re  # <-- ADD THIS
 
 print("=" * 60)
 print("🚀 3D PRINTING MULTI-IDEA GENERATOR")
@@ -166,7 +167,7 @@ def handler(job):
         
         response = llm(
             prompt,
-            max_tokens=1200,  # Enough for 3 detailed ideas
+            max_tokens=1200,
             temperature=0.8,
             top_p=0.9,
             echo=False
