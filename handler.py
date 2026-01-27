@@ -1,4 +1,4 @@
-# handler.py - SINGLE HIGH-QUALITY IDEA (BEST VERSION)
+# handler.py - MULTIPLE IDEAS, SIMPLE OUTPUT
 import runpod
 from llama_cpp import Llama
 import os
@@ -6,8 +6,7 @@ import sys
 import time
 
 print("=" * 60)
-print("🚀 3D PRINTING GIFT IDEA GENERATOR")
-print("(Single High-Quality Idea Version)")
+print("🚀 3D PRINTING MULTI-IDEA GENERATOR")
 print("=" * 60)
 
 MODEL_PATH = "/runpod-volume/qwen2.5-1.5b-instruct-q4_k_m.gguf"
@@ -25,7 +24,7 @@ if os.path.exists(MODEL_PATH):
     try:
         llm = Llama(
             model_path=MODEL_PATH,
-            n_ctx=2048,
+            n_ctx=4096,
             n_threads=4,
             n_gpu_layers=0,
             verbose=False
@@ -38,50 +37,113 @@ if os.path.exists(MODEL_PATH):
 else:
     print("❌ Model file not found!")
 
-def generate_high_quality_idea(fun_fact):
-    """Generate ONE high-quality, specific idea"""
+def generate_multiple_ideas(fun_fact):
+    """Generate 3 ideas with name + detailed visual prompt"""
     
-    prompt = f"""You are designing a 3D printable decorative object for a desk.
+    prompt = f"""Create 3 different 3D printable decorative objects for someone who loves {fun_fact}.
 
-PERSON'S INTERESTS: {fun_fact}
-MATERIAL: Gray PLA plastic
-PRINTING METHOD: FDM (Fused Deposition Modeling)
+Each object must:
+- Combine elements from their interests
+- Be made of gray PLA
+- Print easily with minimal supports
+- Be one solid piece
+- Be desk-sized
 
-CREATE ONE SPECIFIC OBJECT that creatively combines elements from their interests.
+For EACH object, provide:
+1. A creative name (2-4 words)
+2. A detailed visual description for AI image generation (3-5 sentences)
 
-OBJECT REQUIREMENTS:
-• Must be ONE solid object (no assembly)
-• Printable with minimal or no supports
-• No overhangs greater than 45 degrees
-• No thin walls (minimum 2mm thickness)
-• Desk-sized (under 15cm tall/wide)
-• Decorative, not functional
-• Visually interesting from the front
+Make each object unique and creative!
 
-BRAINSTORM EXAMPLE:
-For "loves coffee and cats":
-• A cat-shaped coffee cup holder
-• A coaster with cat paw prints and coffee bean patterns
-• A pen holder shaped like a sleeping cat next to a coffee mug
+Here are your 3 ideas:
 
-YOUR TASK:
-1. Think of ONE creative, specific object
-2. Describe it in detail for an AI image generator
-3. Make sure it follows all printing rules
+IDEA 1:
+Name: 
+Visual: 
 
-FORMAT YOUR RESPONSE:
+IDEA 2:
+Name: 
+Visual: 
 
-OBJECT: [Creative, specific name]
+IDEA 3:
+Name: 
+Visual: 
 
-DESCRIPTION: [Detailed visual description for AI image generation. Be specific about shapes, features, style. Mention it's a gray PLA 3D printable object. 3-5 sentences.]
-
-Now create for: "{fun_fact}"
-"""
+Now create for: {fun_fact}"""
     
     return prompt
 
+def parse_ideas(text):
+    """Extract name and visual prompts from text"""
+    ideas = []
+    
+    # Split by IDEA X: pattern
+    idea_sections = re.split(r'IDEA\s*\d+:', text, flags=re.IGNORECASE)
+    
+    for section in idea_sections[1:]:  # Skip first empty section
+        lines = [line.strip() for line in section.strip().split('\n') if line.strip()]
+        
+        name = ""
+        visual = ""
+        
+        for i, line in enumerate(lines):
+            if line.lower().startswith('name:'):
+                name = line[5:].strip()
+                # Look for Visual in next lines
+                for j in range(i+1, len(lines)):
+                    if lines[j].lower().startswith('visual:'):
+                        visual = lines[j][7:].strip()
+                        # Get additional lines if they're part of visual
+                        for k in range(j+1, len(lines)):
+                            next_line = lines[k].strip()
+                            if next_line and not next_line.lower().startswith(('name:', 'idea', 'visual:')):
+                                visual += " " + next_line
+                            else:
+                                break
+                        break
+                break
+        
+        # If pattern didn't match, try to find name and visual in first lines
+        if not name or not visual:
+            for line in lines:
+                if line and not line.lower().startswith(('name:', 'visual:')):
+                    if not name and len(line.split()) <= 5:
+                        name = line
+                    elif not visual and len(line.split()) > 10:
+                        visual = line
+        
+        # Clean up
+        if name:
+            name = name.strip('"').strip("'").strip()
+        if visual:
+            visual = visual.strip('"').strip("'").strip()
+            
+            # Ensure it has key elements
+            if "gray" not in visual.lower() and "grey" not in visual.lower():
+                visual = f"Gray {visual}"
+            if "pla" not in visual.lower():
+                visual = f"PLA {visual}"
+            if "3d" not in visual.lower():
+                visual = f"3D printable {visual}"
+            
+            # Remove any remaining format markers
+            visual = visual.replace('Name:', '').replace('Visual:', '')
+            
+            # Limit length but keep it descriptive
+            words = visual.split()
+            if len(words) > 80:
+                visual = ' '.join(words[:80]) + "..."
+        
+        if name and visual:
+            ideas.append({
+                "name": name,
+                "visual": visual
+            })
+    
+    return ideas
+
 def handler(job):
-    """Main handler function - Returns ONE high-quality idea"""
+    """Main handler - Returns multiple ideas"""
     print(f"\n🎯 Received job")
     
     try:
@@ -97,15 +159,15 @@ def handler(job):
             return {"status": "error", "message": "Model not loaded"}
         
         # Generate prompt
-        prompt = generate_high_quality_idea(fun_fact)
+        prompt = generate_multiple_ideas(fun_fact)
         
-        print("🤖 Generating high-quality idea...")
+        print("🤖 Generating 3 ideas...")
         start_time = time.time()
         
         response = llm(
             prompt,
-            max_tokens=450,      # Enough for detailed description
-            temperature=0.75,    # Balanced creativity
+            max_tokens=1200,  # Enough for 3 detailed ideas
+            temperature=0.8,
             top_p=0.9,
             echo=False
         )
@@ -113,100 +175,40 @@ def handler(job):
         generation_time = time.time() - start_time
         
         raw_response = response['choices'][0]['text'].strip()
-        print(f"\n📄 Raw response:\n{raw_response}")
+        print(f"\n📄 Raw response (first 800 chars):\n{raw_response[:800]}...")
         print("-" * 50)
         
-        # Parse the response
-        lines = [line.strip() for line in raw_response.split('\n') if line.strip()]
+        # Parse ideas
+        ideas = parse_ideas(raw_response)
         
-        name = f"3D Printed Gift for {fun_fact.split()[-1] if len(fun_fact.split()) > 1 else 'Friend'}"
-        description = ""
+        # If parsing failed, generate at least one good idea
+        if len(ideas) < 2:
+            print("⚠️ Couldn't parse 3 ideas, generating fallback...")
+            # Create simple fallback ideas
+            interests = fun_fact.lower()
+            if "coffee" in interests and "cats" in interests:
+                ideas = [
+                    {
+                        "name": "Cat Coffee Mug Sculpture",
+                        "visual": "Gray PLA 3D printable sculpture of a cat curled around a coffee mug. Detailed fur texture on the cat, steam rising from the mug. Low-poly style, front view, desk decor."
+                    },
+                    {
+                        "name": "Whisker Pattern Coaster",
+                        "visual": "Gray PLA coaster with cat whisker patterns and coffee bean imprints. Geometric design, subtle texture, 3D printable decorative object for desk."
+                    },
+                    {
+                        "name": "Sleeping Cat Pen Holder",
+                        "visual": "Gray PLA pen holder shaped like a sleeping cat next to a miniature coffee cup. Smooth surfaces, minimalist design, 3D printable desk accessory."
+                    }
+                ]
         
-        # Look for OBJECT: and DESCRIPTION: markers
-        found_object = False
-        found_description = False
+        print(f"\n✅ Generated {len(ideas)} ideas:")
+        for i, idea in enumerate(ideas, 1):
+            print(f"  {i}. {idea['name']}")
+            print(f"     Visual: {idea['visual'][:80]}...")
         
-        for i, line in enumerate(lines):
-            line_lower = line.lower()
-            
-            if line_lower.startswith('object:'):
-                name = line[7:].strip().strip('"').strip("'")
-                found_object = True
-            
-            elif line_lower.startswith('description:'):
-                description = line[12:].strip().strip('"').strip("'")
-                found_description = True
-                
-                # Try to get more description from following lines
-                for j in range(i+1, min(i+4, len(lines))):
-                    next_line = lines[j].strip()
-                    if next_line and not next_line.lower().startswith(('object:', 'description:', 'name:')):
-                        description += " " + next_line
-            
-            elif not found_object and len(line) > 10 and ':' not in line:
-                # If no OBJECT: found, use first substantial line as name
-                name = line[:80]
-                found_object = True
-        
-        # If no proper description was found, use the entire response (excluding name)
-        if not description or len(description.split()) < 15:
-            # Combine all lines except the name line
-            all_text = ' '.join(lines)
-            if name in all_text:
-                description = all_text.replace(name, '').strip()
-            else:
-                description = all_text
-        
-        # Clean and enhance the description
-        description = description.replace('"', '').replace("'", "").strip()
-        
-        # Ensure it mentions key elements
-        desc_lower = description.lower()
-        if "gray" not in desc_lower and "grey" not in desc_lower:
-            description = f"Gray {description}"
-        if "pla" not in desc_lower:
-            description = f"PLA {description}"
-        if "3d" not in desc_lower and "three dimensional" not in desc_lower:
-            description = f"3D printable {description}"
-        
-        # Add DfAM context if not already there
-        if "support" not in desc_lower and "print" in desc_lower:
-            description += " Designed for 3D printing with minimal supports, solid construction."
-        
-        # Clean up repetitions
-        sentences = description.split('. ')
-        unique_sentences = []
-        seen = set()
-        for sentence in sentences:
-            words = sentence.split()[:10]  # First 10 words as key
-            key = ' '.join(words).lower()
-            if key not in seen:
-                unique_sentences.append(sentence)
-                seen.add(key)
-        
-        description = '. '.join(unique_sentences).strip()
-        if not description.endswith('.'):
-            description += '.'
-        
-        print(f"\n✅ Parsed results:")
-        print(f"Name: {name}")
-        print(f"Description length: {len(description.split())} words")
-        print(f"First 100 chars: {description[:100]}...")
-        
-        return {
-            "status": "success",
-            "idea": {
-                "name": name,
-                "visual_prompt": description,  # This goes to text-image model
-                "fun_fact": fun_fact,
-                "material": "PLA",
-                "color": "gray",
-                "printing_notes": "Designed for FDM printing with minimal supports, one continuous object"
-            },
-            "generation_time": f"{generation_time:.2f}s",
-            "model": "Qwen2.5-1.5B-Instruct",
-            "quality": "high"
-        }
+        # Return JUST the array of ideas
+        return ideas  # Just the array, nothing else!
         
     except Exception as e:
         print(f"❌ Error: {e}")
@@ -215,8 +217,8 @@ def handler(job):
         return {"error": str(e)}
 
 print("\n🏁 Starting RunPod serverless handler...")
-print("Generating HIGH-QUALITY 3D printable gift ideas! 🎁")
-print("\n📝 Input format (simple):")
+print("Generating 3 creative ideas per request!")
+print("\n📝 Input format:")
 print('''{
   "input": {
     "fun_fact": "loves coffee and cats"
