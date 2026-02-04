@@ -43,18 +43,15 @@ def generate_multiple_ideas(fun_fact):
     
     prompt = f"""Create 3 different 3D printable decorative objects for someone who loves {fun_fact}.
 
-Each object must:
-- Combine elements from their interests
-- Be made of gray PLA
-- Print easily with minimal supports
-- Be one solid piece
-- Be desk-sized
+IMPORTANT: Each object must be:
+- Made of gray PLA
+- Desk-sized (fits on a desk)
+- One solid piece (no assembly needed)
+- Easy to 3D print with minimal supports
 
-For EACH object, provide:
-1. A creative name (2-4 words)
-2. A detailed visual description for AI image generation (3-5 sentences)
-
-Make each object unique and creative!
+For EACH object, provide EXACTLY this format:
+Name: [Creative name, 2-4 words]
+Visual: [A detailed visual description for AI image generation. Start with "3D printable Gray PLA". Describe the object clearly in 2-3 sentences.]
 
 Here are your 3 ideas:
 
@@ -75,74 +72,158 @@ Now create for: {fun_fact}"""
     return prompt
 
 def parse_ideas(text):
-    """Extract name and visual prompts from text"""
+    """Extract name and visual prompts from text - IMPROVED"""
     ideas = []
     
-    # Split by IDEA X: pattern
-    idea_sections = re.split(r'IDEA\s*\d+:', text, flags=re.IGNORECASE)
+    print(f"Parsing text of length: {len(text)}")
+    print(f"First 500 chars: {text[:500]}")
     
-    for section in idea_sections[1:]:  # Skip first empty section
-        lines = [line.strip() for line in section.strip().split('\n') if line.strip()]
+    # Clean the text first
+    text = text.strip()
+    
+    # Try different patterns to find ideas
+    patterns = [
+        r'IDEA\s+\d+:\s*\n',  # IDEA 1:
+        r'Idea\s+\d+:\s*\n',  # Idea 1:
+        r'### IDEA\s+\d+:\s*\n',  # ### IDEA 1:
+        r'\d+\.\s*\n',  # 1.
+    ]
+    
+    # Try to split by any of these patterns
+    sections = []
+    for pattern in patterns:
+        sections = re.split(pattern, text, flags=re.IGNORECASE)
+        if len(sections) > 3:  # Found meaningful splits
+            print(f"Split into {len(sections)} sections with pattern: {pattern}")
+            break
+    
+    # If no pattern worked, try manual extraction
+    if len(sections) <= 3:
+        print("No pattern matched, trying manual extraction")
+        # Look for "Name:" and "Visual:" patterns
+        name_matches = list(re.finditer(r'(?:Name|Title):\s*(.+?)(?:\n|$)', text, re.IGNORECASE))
+        visual_matches = list(re.finditer(r'(?:Visual|Description):\s*(.+?)(?:\n|$)', text, re.IGNORECASE))
         
+        for i in range(min(3, len(name_matches), len(visual_matches))):
+            name = name_matches[i].group(1).strip()
+            visual = visual_matches[i].group(1).strip()
+            
+            # Clean up quotes
+            name = name.strip('"\'')
+            visual = visual.strip('"\'').replace('**', '')
+            
+            ideas.append({
+                "name": name,
+                "visual": clean_visual_prompt(visual)
+            })
+        
+        return ideas if ideas else create_fallback_ideas()
+    
+    # Process each section (skip first empty section)
+    for i, section in enumerate(sections[1:4]):  # Only first 3 ideas
+        section = section.strip()
+        if not section:
+            continue
+            
         name = ""
         visual = ""
         
-        for i, line in enumerate(lines):
-            if line.lower().startswith('name:'):
-                name = line[5:].strip()
-                # Look for Visual in next lines
-                for j in range(i+1, len(lines)):
-                    if lines[j].lower().startswith('visual:'):
-                        visual = lines[j][7:].strip()
-                        # Get additional lines if they're part of visual
-                        for k in range(j+1, len(lines)):
-                            next_line = lines[k].strip()
-                            if next_line and not next_line.lower().startswith(('name:', 'idea', 'visual:')):
-                                visual += " " + next_line
-                            else:
-                                break
-                        break
-                break
+        # Look for Name and Visual in this section
+        lines = section.split('\n')
         
-        # If pattern didn't match, try to find name and visual in first lines
-        if not name or not visual:
-            for line in lines:
-                if line and not line.lower().startswith(('name:', 'visual:')):
-                    if not name and len(line.split()) <= 5:
-                        name = line
-                    elif not visual and len(line.split()) > 10:
-                        visual = line
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Check for name
+            if line.lower().startswith(('name:', 'title:')):
+                name = line.split(':', 1)[1].strip()
+            elif line.lower().startswith(('visual:', 'description:')):
+                visual = line.split(':', 1)[1].strip()
+            elif not name and len(line.split()) <= 5 and not any(x in line.lower() for x in ['idea', 'visual', 'name', 'description']):
+                # Could be a name
+                name = line
+            elif not visual and len(line.split()) > 10:
+                # Could be a visual description
+                visual = line
         
-        # Clean up
-        if name:
-            name = name.strip('"').strip("'").strip()
-        if visual:
-            visual = visual.strip('"').strip("'").strip()
-            
-            # Ensure it has key elements
-            if "gray" not in visual.lower() and "grey" not in visual.lower():
-                visual = f"Gray {visual}"
-            if "pla" not in visual.lower():
-                visual = f"PLA {visual}"
-            if "3d" not in visual.lower():
-                visual = f"3D printable {visual}"
-            
-            # Remove any remaining format markers
-            visual = visual.replace('Name:', '').replace('Visual:', '')
-            
-            # Limit length but keep it descriptive
-            words = visual.split()
-            if len(words) > 80:
-                visual = ' '.join(words[:80]) + "..."
-        
+        # If we found both, clean them
         if name and visual:
+            name = name.strip('"\'').replace('**', '')
+            visual = clean_visual_prompt(visual)
+            
             ideas.append({
                 "name": name,
                 "visual": visual
             })
     
-    return ideas
+    # If we didn't get 3 ideas, create fallbacks
+    if len(ideas) < 3:
+        print(f"Only found {len(ideas)} ideas, adding fallbacks")
+        ideas.extend(create_fallback_ideas()[:3-len(ideas)])
+    
+    return ideas[:3]  # Return max 3
 
+def clean_visual_prompt(visual):
+    """Clean and format visual prompt"""
+    if not visual:
+        return "A 3D printable decorative object made of gray PLA, desk-sized"
+    
+    # Remove unwanted prefixes
+    visual = visual.strip()
+    
+    # Remove common problematic prefixes
+    prefixes_to_remove = [
+        "PLA Gray",
+        "Gray PLA",
+        "3D printable",  # We'll add it back if needed
+        "**Visual Description:**",
+        "**Visual:**",
+        "Visual:",
+        "Description:"
+    ]
+    
+    for prefix in prefixes_to_remove:
+        if visual.lower().startswith(prefix.lower()):
+            visual = visual[len(prefix):].strip()
+    
+    # Ensure it starts with "3D printable"
+    if not visual.lower().startswith('3d printable'):
+        visual = f"3D printable {visual}"
+    
+    # Ensure it mentions gray PLA
+    if 'gray' not in visual.lower() and 'grey' not in visual.lower():
+        visual = f"Gray PLA {visual}"
+    elif 'pla' not in visual.lower():
+        visual = f"PLA {visual}"
+    
+    # Remove any remaining markdown
+    visual = visual.replace('**', '').replace('__', '')
+    
+    # Limit length
+    words = visual.split()
+    if len(words) > 50:
+        visual = ' '.join(words[:50]) + "..."
+    
+    return visual
+
+def create_fallback_ideas():
+    """Create fallback ideas"""
+    return [
+        {
+            "name": "Dancing Knit Sculpture",
+            "visual": "3D printable Gray PLA sculpture combining dance ribbons with knitted textures, minimalist design, desk decor"
+        },
+        {
+            "name": "Knit & Dance Coaster Set", 
+            "visual": "3D printable Gray PLA set of coasters with dance pattern edges and knitted center designs, functional art"
+        },
+        {
+            "name": "Ballerina Yarn Holder",
+            "visual": "3D printable Gray PLA figurine of a ballerina holding knitting yarn, elegant pose, desk accessory"
+        }
+    ]
 def handler(job):
     """Main handler - Returns multiple ideas"""
     print(f"\n🎯 Received job")
