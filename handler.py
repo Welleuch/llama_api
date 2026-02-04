@@ -1,3 +1,18 @@
+python
+# handler.py - MULTIPLE IDEAS, SIMPLE OUTPUT
+import runpod  # <-- ADD THIS AT THE VERY TOP!
+from llama_cpp import Llama
+import os
+import sys
+import time
+import re
+
+print("=" * 60)
+print("🚀 3D PRINTING MULTI-IDEA GENERATOR")
+print("=" * 60)
+
+MODEL_PATH = "/runpod-volume/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+
 def handler(job):
     """Main handler - Returns multiple ideas"""
     print(f"\n🎯 Received job")
